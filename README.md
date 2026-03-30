@@ -48,24 +48,28 @@ baymax/
 │
 ├── backend/ # Node.js + Express backend
 │ ├── src/
-│ │ ├── config/ # Database config
+│ │ ├── config/ # Database configuration
 │ │ ├── modules/ # Feature modules (auth, chatbot, etc.)
-│ │ ├── socket/ # Real-time chat
+│ │ ├── socket/ # Real-time chat (Socket.io)
 │ │ └── app.js
 │ ├── server.js # Entry point
-│ └── package.json
+│ ├── package.json
+│ └── package-lock.json
 │
 ├── frontend/ # React frontend
-│ ├── public/
+│ ├── public/ # Static assets
 │ ├── src/
-│ │ ├── components/
-│ │ ├── pages/
-│ │ ├── layouts/
-│ │ ├── services/
-│ │ └── App.js
-│ └── package.json
+│ │ ├── components/ # Reusable UI components
+│ │ ├── pages/ # App pages (Chat, Dashboard, etc.)
+│ │ ├── layouts/ # Layout wrappers
+│ │ ├── context/ # Global state (language, etc.)
+│ │ ├── services/ # API calls (Axios)
+│ │ ├── App.js
+│ │ └── index.js
+│ ├── package.json
+│ └── package-lock.json
 │
-├── docs/ # Documentation files
+├── docs/ # Project documentation
 │ ├── Baymax_Documentation.md
 │ └── Baymax_Documentation.pdf
 │
