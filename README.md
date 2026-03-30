@@ -44,34 +44,37 @@ BAYMAX is a full-stack AI-powered mental health companion platform designed to s
 
 ## 📁 Project Structure
 
+## 📁 Project Structure
+
+```text
 baymax/
 │
-├── backend/ # Node.js + Express backend
-│ ├── src/
-│ │ ├── config/ # Database configuration
-│ │ ├── modules/ # Feature modules (auth, chatbot, etc.)
-│ │ ├── socket/ # Real-time chat (Socket.io)
-│ │ └── app.js
-│ ├── server.js # Entry point
-│ ├── package.json
-│ └── package-lock.json
+├── backend/                 # Node.js + Express backend
+│   ├── src/
+│   │   ├── config/          # Database configuration
+│   │   ├── modules/         # Feature modules (auth, chatbot, etc.)
+│   │   ├── socket/          # Real-time chat (Socket.io)
+│   │   └── app.js
+│   ├── server.js            # Entry point
+│   ├── package.json
+│   └── package-lock.json
 │
-├── frontend/ # React frontend
-│ ├── public/ # Static assets
-│ ├── src/
-│ │ ├── components/ # Reusable UI components
-│ │ ├── pages/ # App pages (Chat, Dashboard, etc.)
-│ │ ├── layouts/ # Layout wrappers
-│ │ ├── context/ # Global state (language, etc.)
-│ │ ├── services/ # API calls (Axios)
-│ │ ├── App.js
-│ │ └── index.js
-│ ├── package.json
-│ └── package-lock.json
+├── frontend/                # React frontend
+│   ├── public/              # Static assets
+│   ├── src/
+│   │   ├── components/      # Reusable UI components
+│   │   ├── pages/           # App pages
+│   │   ├── layouts/         # Layout wrappers
+│   │   ├── context/         # Global state
+│   │   ├── services/        # API calls
+│   │   ├── App.js
+│   │   └── index.js
+│   ├── package.json
+│   └── package-lock.json
 │
-├── docs/ # Project documentation
-│ ├── Baymax_Documentation.md
-│ └── Baymax_Documentation.pdf
+├── docs/                    # Documentation
+│   ├── Baymax_Documentation.md
+│   └── Baymax_Documentation.pdf
 │
 ├── .gitignore
 └── README.md
