@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, User, Sparkles, Heart, Trash2, AlertTriangle, ArrowLeft, Plus, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, User, Sparkles, Heart, Trash2, AlertTriangle, ArrowLeft, Plus, MessageSquare, ChevronLeft, ChevronRight, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import io from 'socket.io-client';
 import { chat as chatApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -189,6 +189,15 @@ export default function Chat() {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
 
+  // ── Voice & Speech State ───────────────────────────────────────────────────
+  const [isListening, setIsListening] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const sendMessageRef = useRef(null);
+  const handleSpeakRef = useRef(null);
+
   // ── Session state ──────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
@@ -201,6 +210,8 @@ export default function Chat() {
   const userId = user?.id || user?._id || 'anonymous_user';
   const { t } = useLanguage();
   const navigate = useNavigate();
+
+
 
   // ── Load sessions on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -296,6 +307,10 @@ export default function Chat() {
       ]);
       setLoading(false);
 
+      if (handleSpeakRef.current) {
+        handleSpeakRef.current(data.reply);
+      }
+
       // Refresh session list so preview/count updates
       chatApi.getSessions().then(r => setSessions(r.data?.data || [])).catch(() => {});
     });
@@ -353,6 +368,119 @@ export default function Chat() {
 
   const showEmpty = !historyLoading && messages.length === 0;
 
+  // ── Setup Speech & TTS ──────────────────────────────────────────────────
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
+
+  // Kickstart voice loading asynchronously on mount
+  useEffect(() => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
+  const handleSpeak = useCallback((text) => {
+    if (!voiceMode || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    
+    // Clean text for speech
+    const cleanText = text.replace(/[*#_]+/g, '').replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD10-\uDDFF])/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+
+    // Try finding a gentle, natural male voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoiceNames = [
+      "Google UK English Male",
+      "Microsoft Mark",       // Windows calm male
+      "Microsoft David",      // Windows default male
+      "Alex",                 // Mac natural
+      "Daniel"                // Mac UK
+    ];
+    
+    let selectedVoice = null;
+    for (const name of preferredVoiceNames) {
+      selectedVoice = voices.find(v => v.name.includes(name));
+      if (selectedVoice) break;
+    }
+    
+    // Fallback: any English male voice
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Male'));
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
+    // Tweak to sound gentler
+    utterance.pitch = 0.9; // Slightly lower pitch for deeper/gentle tone
+    utterance.rate = 0.95; // Slightly slower, calmer delivery
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }, [voiceMode]);
+
+  useEffect(() => {
+    handleSpeakRef.current = handleSpeak;
+  }, [handleSpeak]);
+
+  useEffect(() => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRec) {
+      const rec = new SpeechRec();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => setIsListening(true);
+      rec.onerror = (e) => {
+        console.error('STT error', e);
+        if (e.error !== 'no-speech') setIsListening(false);
+      };
+      rec.onend = () => setIsListening(false);
+
+      rec.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        setInput(transcript);
+
+        // Reset silence timer for auto-send
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          rec.stop();
+          if (sendMessageRef.current) sendMessageRef.current();
+        }, 1500);
+      };
+      recognitionRef.current = rec;
+    }
+
+    return () => {
+      clearTimeout(silenceTimerRef.current);
+      if (recognitionRef.current) recognitionRef.current.stop();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const toggleMic = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      setInput('');
+      try {
+        recognitionRef.current?.start();
+      } catch(e) { console.error('Mic start error', e); }
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-6rem)] relative bg-white rounded-3xl border-2 border-[#DCEAFF] shadow-sm overflow-hidden">
 
@@ -383,14 +511,20 @@ export default function Chat() {
 
           {/* Baymax avatar */}
           <div className="relative flex-shrink-0">
-            <div className="w-14 h-14 rounded-2xl bg-white border-2 border-[#DCEAFF] shadow-sm flex items-center justify-center overflow-hidden">
+            <div className={`w-14 h-14 rounded-2xl bg-white border-2 border-[#DCEAFF] shadow-sm flex items-center justify-center overflow-hidden transition-all ${isSpeaking ? 'ring-4 ring-blue-100 shadow-blue-200 shadow-lg' : ''}`}>
               <img
                 src="/images/baymax_wave.png"
                 alt="Baymax"
-                className={`w-11 h-11 object-contain transition-all ${loading ? 'baymax-float' : ''}`}
+                className={`w-11 h-11 object-contain transition-all ${loading || isSpeaking ? 'baymax-float' : ''}`}
               />
             </div>
-            <span className={`absolute -bottom-1 -right-1 flex h-4 w-4 ${connected ? '' : 'hidden'}`}>
+            {isSpeaking && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 border-2 border-white" />
+              </span>
+            )}
+            <span className={`absolute -bottom-1 -right-1 flex h-4 w-4 ${connected && !isSpeaking ? '' : 'hidden'}`}>
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white" />
             </span>
@@ -409,6 +543,20 @@ export default function Chat() {
 
           {/* Right chips */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                setVoiceMode(!voiceMode);
+                if (voiceMode && window.speechSynthesis) window.speechSynthesis.cancel();
+              }}
+              className={`hidden sm:flex items-center justify-center w-10 h-10 rounded-2xl border-2 transition-all shadow-sm ${
+                voiceMode
+                  ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-300'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-500'
+              }`}
+              title={voiceMode ? 'Voice Responses On' : 'Voice Responses Off'}
+            >
+              {voiceMode ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            </button>
             <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-2 rounded-2xl border-2 border-[#DCEAFF] shadow-sm">
               <Heart className="w-4 h-4 text-red-400 fill-red-400" />
               <span className="text-xs font-black text-gray-600">Mental Health Support</span>
@@ -475,21 +623,32 @@ export default function Chat() {
 
         {/* ── Input area ─────────────────────────────────────────────────── */}
         <div className="flex-none p-4 bg-white border-t-2 border-[#DCEAFF] z-10">
-          <div className="relative flex items-end gap-3 bg-[#EEF3FF] border-2 border-[#DCEAFF] rounded-2xl p-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-200 transition-all">
+          <div className={`relative flex items-end gap-3 bg-[#EEF3FF] border-2 rounded-2xl p-2 transition-all ${isListening ? 'border-rose-300 ring-2 ring-rose-100' : 'border-[#DCEAFF] focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-200'}`}>
             <textarea
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={t('chat_placeholder')}
+              placeholder={isListening ? 'Listening...' : t('chat_placeholder')}
               rows={1}
               style={{ resize: 'none' }}
-              className="flex-1 bg-transparent px-4 py-3 text-[15px] text-gray-700 focus:outline-none placeholder-gray-300 font-semibold leading-relaxed min-h-[48px] max-h-32 overflow-y-auto"
+              className={`flex-1 bg-transparent px-4 py-3 text-[15px] focus:outline-none font-semibold leading-relaxed min-h-[48px] max-h-32 overflow-y-auto ${isListening ? 'text-rose-700 placeholder-rose-300' : 'text-gray-700 placeholder-gray-400'}`}
               onInput={e => {
                 e.target.style.height = 'auto';
                 e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
               }}
             />
+            <button
+              onClick={toggleMic}
+              className={`p-3.5 rounded-xl transition-all shadow-md flex-shrink-0 self-end mb-0.5 ${
+                isListening
+                  ? 'bg-rose-100 text-rose-600 border-2 border-rose-300 animate-pulse'
+                  : 'bg-white text-gray-400 border-2 border-gray-200 hover:text-blue-500 hover:border-blue-300'
+              }`}
+              title="Voice Input (Auto-sends when you stop talking for 1.5s)"
+            >
+              {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+            </button>
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim() || !connected}
