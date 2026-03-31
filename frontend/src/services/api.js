@@ -48,6 +48,10 @@ export const counselor = {
   getStudentProfile: (id) => API.get(`/counselor/student/${id}`),
   getStudentHistory: (id) => API.get(`/counselor/student/${id}/history`),
 };
+export const aerp = {
+  getRecord: (collegeId) => API.get(`/aerp/student/${collegeId}`),
+  getAttendanceLogs: (collegeId) => API.get(`/aerp/attendance/${collegeId}`),
+};
 export const resources = {
   getAll: () => API.get('/resources'),
   getByType: (type) => API.get(`/resources?type=${encodeURIComponent(type)}`),
@@ -68,4 +72,3 @@ export const sessionNotes = {
   getAll: () => API.get('/session-notes'),
 };
 export default API;
-

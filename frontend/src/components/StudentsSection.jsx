@@ -2,10 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, User, X, Phone, Building2, Calendar,
   ChevronRight, AlertCircle, TrendingUp, Activity, Shield,
-  Heart, Mail, Hash, ArrowLeft, RefreshCw
+  Heart, Mail, Hash, ArrowLeft, RefreshCw, BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { counselor } from '../services/api';
+import AttendanceTrendsModal from './AttendanceTrendsModal';
 
 /* ─── Severity Helpers ──────────────────────────────────────────── */
 const SEVERITY_META = {
@@ -135,6 +136,7 @@ function InfoCard({ icon, label, value, accent }) {
 function StudentDetailPanel({ student, onBack }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showTrends, setShowTrends] = useState(false);
 
   const fetchHistory = useCallback(() => {
     if (!student) return;
@@ -159,6 +161,7 @@ function StudentDetailPanel({ student, onBack }) {
     (latestGAD?.severity && latestGAD.severity === 'severe');
 
   return (
+    <>
     <motion.div
       key="detail"
       initial={{ opacity: 0, y: 16 }}
@@ -290,6 +293,48 @@ function StudentDetailPanel({ student, onBack }) {
           </div>
         </div>
 
+        {/* ── Academic Context (AERP Simulation) ── */}
+        <div className="px-6 pb-4">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5" /> Academic Context (AERP)
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <InfoCard 
+              icon={<Building2 className="w-4 h-4" />} 
+              label="Attendance" 
+              value={student.attendance_percentage ? `${student.attendance_percentage}%` : 'No Record'} 
+              accent={student.attendance_percentage < 75 ? 'rose' : 'emerald'} 
+            />
+            <InfoCard 
+              icon={<Activity className="w-4 h-4" />} 
+              label="Current CGPA" 
+              value={student.current_cgpa || 'No Record'} 
+              accent="blue" 
+            />
+            <InfoCard 
+              icon={<AlertCircle className="w-4 h-4" />} 
+              label="Failed Subjects" 
+              value={student.failed_subjects_count !== undefined && student.failed_subjects_count !== null ? student.failed_subjects_count : 'No Record'} 
+              accent={student.failed_subjects_count > 0 ? 'amber' : 'emerald'} 
+            />
+            <InfoCard 
+              icon={<Shield className="w-4 h-4" />} 
+              label="Warning Status" 
+              value={student.academic_warning ? "Academic Warning" : "Clear"} 
+              accent={student.academic_warning ? 'rose' : 'slate'} 
+            />
+          </div>
+          {student.college_id && (
+            <button
+              onClick={() => setShowTrends(true)}
+              className="mt-3 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold py-2.5 px-4 rounded-2xl transition-all shadow-md shadow-blue-500/20"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Detailed Attendance Trends
+            </button>
+          )}
+        </div>
+
         {/* ── Assessment History ── */}
         <div className="px-6 pb-6">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -340,6 +385,14 @@ function StudentDetailPanel({ student, onBack }) {
 
       </div>
     </motion.div>
+
+      {showTrends && (
+        <AttendanceTrendsModal
+          student={student}
+          onClose={() => setShowTrends(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -390,6 +443,18 @@ function StudentCard({ student, onClick }) {
           <p className="text-xs text-gray-400 font-medium truncate">
             {student.department || 'No department'} • {student.college_id || student.email}
           </p>
+          <div className="flex gap-2 mt-1.5 flex-wrap">
+            {student.attendance_percentage && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${student.attendance_percentage < 75 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                {student.attendance_percentage}% Att.
+              </span>
+            )}
+            {student.current_cgpa && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700">
+                {student.current_cgpa} CGPA
+              </span>
+            )}
+          </div>
           {student.student_contact && (
             <div className="flex items-center gap-1 mt-1">
               <Phone className={`w-3 h-3 flex-shrink-0 ${isCrisis ? 'text-rose-400' : 'text-blue-400'}`} />
